@@ -27,7 +27,7 @@ const DriverRegistration = ({ contract, account, onSuccess }) => {
                 formData.plateNumber,
                 formData.fare
             );
-            await tx.wait(); // Wait for confirmation
+            await tx.wait(); // Tunggu Konfirmasi
             setStatus('Register Succes');
             if (onSuccess) onSuccess();
         } catch (error) {

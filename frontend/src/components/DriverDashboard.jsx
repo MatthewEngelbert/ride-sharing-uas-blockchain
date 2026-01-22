@@ -51,7 +51,6 @@ const DriverDashboard = ({ contract, account }) => {
                 const ride = await contract.rides(i);
                 if (!ride) continue;
 
-                // Available: Status is Requested (0)
                 if (ride.status !== undefined && ride.status.toString() === "0") {
                     available.push({
                         id: i,
@@ -62,7 +61,6 @@ const DriverDashboard = ({ contract, account }) => {
                     });
                 }
 
-                // My Jobs: Driver is me
                 if (ride.driver && account && ride.driver.toLowerCase() === account.toLowerCase()) {
                     jobs.push({
                         id: i,
@@ -203,11 +201,9 @@ const DriverDashboard = ({ contract, account }) => {
                                 <strong>Ride #{ride.id}</strong>
                                 <span className="status-badge">Status: {getStatusLabel(ride.status)}</span>
                                 <div style={{ marginTop: '5px' }}>
-                                    {/* Status 1: Accepted -> Can Start */}
                                     {ride.status.toString() === "1" && (
                                         <button onClick={() => handleStartRide(ride.id)}>Start Ride</button>
                                     )}
-                                    {/* Status 3: Started -> Can Complete */}
                                     {ride.status.toString() === "3" && (
                                         <button onClick={() => handleCompleteRide(ride.id)}>Complete Ride</button>
                                     )}

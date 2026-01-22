@@ -8,7 +8,7 @@ const PublicOverview = ({ contract }) => {
     const fetchData = async () => {
         if (!contract) return;
         try {
-            setStatus('Fetching data...');
+            setStatus('Fetching data');
 
             // Fetch Drivers
             const dsCount = await contract.getDriverCount();
@@ -40,7 +40,7 @@ const PublicOverview = ({ contract }) => {
                 });
             }
             setRides(rideList);
-            setStatus('Data updated!');
+            setStatus('Data updated');
         } catch (error) {
             console.error(error);
             if (error.code === -32002 || error.message?.includes('too many errors')) {
