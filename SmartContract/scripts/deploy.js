@@ -6,9 +6,11 @@ async function main() {
 
     await rideShare.waitForDeployment();
 
-    console.log(
-        `RideShare deployed to ${await rideShare.getAddress()}`
-    );
+    const address = await rideShare.getAddress();
+    console.log(`RideShare deployed to ${address}`);
+
+    const fs = require('fs');
+    fs.writeFileSync('deployed_address.txt', address);
 }
 
 main().catch((error) => {

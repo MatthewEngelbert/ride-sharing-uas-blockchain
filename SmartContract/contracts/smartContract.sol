@@ -34,6 +34,7 @@ contract rideShare {
 
     // Mapping data driver dan ride
     mapping(address => Driver) public drivers;
+    address[] public driverAddresses;
     mapping(uint256 => Ride) public rides;
 
     // Jumlah ride
@@ -58,6 +59,7 @@ contract rideShare {
             _fare,
             true
         );
+        driverAddresses.push(msg.sender);
     }
 
     // Get driver
@@ -73,15 +75,19 @@ contract rideShare {
         );
     }
 
-    function requestRide(uint256 _fare) external {
-        require(_fare > 0);
+    function getDriverCount() external view returns (uint256) {
+        return driverAddresses.length;
+    }
+
+    function requestRide() external payable {
+        require(msg.value > 0, "Fare must be greater than 0");
 
         rideCount++;
 
         rides[rideCount] = Ride(
             payable(msg.sender),
             payable(address(0)),
-            _fare,
+            msg.value,
             Status.Requested
         );
     }
@@ -89,28 +95,20 @@ contract rideShare {
     function acceptRide(uint256 _rideId) external {
         Ride storage ride = rides[_rideId];
 
-        require(drivers[msg.sender].registered);
-        require(ride.status == Status.Requested);
+        require(drivers[msg.sender].registered, "Not a registered driver");
+        require(ride.status == Status.Requested, "Ride not available");
 
         ride.driver = payable(msg.sender);
         ride.status = Status.Accepted;
     }
 
-    function fundRide(uint256 _rideId) external payable {
-        Ride storage ride = rides[_rideId];
-
-        require(msg.sender == ride.rider);
-        require(ride.status == Status.Accepted);
-        require(msg.value == ride.fare);
-
-        ride.status = Status.Funded;
-    }
+    // fundRide is removed as it's consolidated with requestRide
 
     function startRide(uint256 _rideId) external {
         Ride storage ride = rides[_rideId];
 
-        require(msg.sender == ride.driver);
-        require(ride.status == Status.Funded);
+        require(msg.sender == ride.driver, "Only driver can start");
+        require(ride.status == Status.Accepted, "Ride must be accepted");
 
         ride.status = Status.Started;
     }
@@ -118,33 +116,44 @@ contract rideShare {
     function completeRide(uint256 _rideId) external {
         Ride storage ride = rides[_rideId];
 
-        require(msg.sender == ride.driver);
-        require(ride.status == Status.Started);
+        require(msg.sender == ride.driver, "Only driver can complete");
+        require(ride.status == Status.Started, "Ride must be started");
 
         ride.status = Status.CompletedByDriver;
     }
 
-    function confirmArrival(uint256 _rideId) external {
+    function finishRide(uint256 _rideId) external {
         Ride storage ride = rides[_rideId];
 
-        require(msg.sender == ride.rider);
-        require(ride.status == Status.CompletedByDriver);
+        require(msg.sender == ride.rider, "Only rider can finish");
+        // Rider can finish anytime after a driver is assigned (Accepted) until Completed
+        require(
+            ride.status == Status.Accepted || 
+            ride.status == Status.Started || 
+            ride.status == Status.CompletedByDriver,
+            "Invalid ride status for finishing"
+        );
 
         ride.status = Status.Finalized;
 
         (bool success, ) = ride.driver.call{value: ride.fare}("");
-        require(success);
+        require(success, "Payout failed");
     }
 
     function cancelRide(uint256 _rideId) external {
         Ride storage ride = rides[_rideId];
 
-        require(msg.sender == ride.rider);
+        require(msg.sender == ride.rider, "Only rider can cancel");
         require(
             ride.status == Status.Requested ||
-            ride.status == Status.Accepted
+            ride.status == Status.Accepted,
+            "Cannot cancel after ride started"
         );
 
         ride.status = Status.Cancelled;
+        
+        // Refund the rider since they already paid in requestRide
+        (bool success, ) = ride.rider.call{value: ride.fare}("");
+        require(success, "Refund failed");
     }
 }

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import Web3 from 'web3';
+import { ethers } from 'ethers';
 import RideShareABI from './contracts/RideShare.json';
-import DriverRegistration from './components/DriverRegistration';
 import RiderDashboard from './components/RiderDashboard';
 import DriverDashboard from './components/DriverDashboard';
 import './App.css';
@@ -12,42 +11,57 @@ function App() {
     const [role, setRole] = useState('rider'); // 'rider' or 'driver'
     const [loading, setLoading] = useState(true);
 
-    const CONTRACT_ADDRESS = "0x2Ff9adDb6d7Ff7d1a970776cCBb3ee3Ee1896fCA";
+    const CONTRACT_ADDRESS = "0x15DEDb62Bc93E5e574CBF6aa3abA7FbfC56d8e76";
 
-    useEffect(() => {
-        const loadWeb3 = async () => {
-            if (window.ethereum) {
-                try {
-                    await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    const web3 = new Web3(window.ethereum);
+    const connectWallet = async () => {
+        if (window.ethereum) {
+            setLoading(true);
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+                const accounts = await provider.send("eth_requestAccounts", []);
 
-                    const accounts = await web3.eth.getAccounts();
+                setAccount(accounts[0]);
+
+                const deployedContract = new ethers.Contract(
+                    CONTRACT_ADDRESS,
+                    RideShareABI.abi,
+                    signer
+                );
+                setContract(deployedContract);
+
+                window.ethereum.on('accountsChanged', (accounts) => {
                     setAccount(accounts[0]);
+                    window.location.reload();
+                });
 
-                    const deployedContract = new web3.eth.Contract(
-                        RideShareABI.abi,
-                        CONTRACT_ADDRESS
-                    );
-                    setContract(deployedContract);
-
-                    window.ethereum.on('accountsChanged', (accounts) => {
-                        setAccount(accounts[0]);
-                    });
-
-                } catch (error) {
-                    console.error("User denied web3 access or error:", error);
+            } catch (error) {
+                console.error("Connection error:", error);
+                if (error.code === -32002 || error.message?.includes('too many errors')) {
+                    alert("RPC Rate Limit: MetaMask is temporarily blocked. Please wait 1 minute or switch RPC in MetaMask (Settings > Networks > Sepolia).");
+                } else {
+                    alert("Failed to connect wallet: " + error.message);
                 }
-            } else {
-                console.log('Non-Ethereum browser detected. You should consider trying MetaMask!');
             }
             setLoading(false);
-        };
+        } else {
+            alert('Metamask not detected. Please install MetaMask!');
+        }
+    };
 
-        loadWeb3();
-    }, []);
-
-    if (loading) return <div>Loading Web3...</div>;
-    if (!account) return <div>Please connect your wallet (MetaMask) to use this app.</div>;
+    if (!account) {
+        return (
+            <div className="container" style={{ textAlign: 'center', marginTop: '100px' }}>
+                <header>
+                    <h1>RideShare</h1>
+                    <p>Please connect your wallet to use the app.</p>
+                    <button onClick={connectWallet} style={{ padding: '15px 30px', fontSize: '1.2rem', marginTop: '20px' }}>
+                        Connect Wallet
+                    </button>
+                </header>
+            </div>
+        );
+    }
 
     return (
         <div className="container">
@@ -72,16 +86,10 @@ function App() {
 
             <main>
                 {role === 'driver' && (
-                    <>
-                        <section className="registration-section">
-                            <h2>Driver Registration</h2>
-                            <DriverRegistration contract={contract} account={account} />
-                        </section>
-                        <section className="dashboard-section">
-                            <h2>Driver Dashboard</h2>
-                            <DriverDashboard contract={contract} account={account} />
-                        </section>
-                    </>
+                    <section className="dashboard-section">
+                        <h2>Driver Dashboard</h2>
+                        <DriverDashboard contract={contract} account={account} />
+                    </section>
                 )}
 
                 {role === 'rider' && (

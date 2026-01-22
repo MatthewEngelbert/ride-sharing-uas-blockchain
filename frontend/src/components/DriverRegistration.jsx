@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const DriverRegistration = ({ contract, account }) => {
+const DriverRegistration = ({ contract, account, onSuccess }) => {
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
@@ -19,18 +19,25 @@ const DriverRegistration = ({ contract, account }) => {
         if (!contract) return;
 
         try {
-            setStatus('Registering...');
-            await contract.methods.registerDriver(
+            setStatus('Registering');
+            const tx = await contract.registerDriver(
                 formData.name,
                 formData.phone,
                 formData.vehicleType,
                 formData.plateNumber,
-                formData.fare // Assuming fare is in basic units (wei) or tokens. Contract uses uint256.
-            ).send({ from: account });
-            setStatus('Registration successful!');
+                formData.fare
+            );
+            await tx.wait(); // Wait for confirmation
+            setStatus('Register Succes');
+            if (onSuccess) onSuccess();
         } catch (error) {
             console.error(error);
-            setStatus('Registration failed. See console.');
+            let errorMessage = 'Registration failed.';
+
+            if (error.message?.includes('user rejected')) {
+                errorMessage = 'Transaction rejected.';
+            }
+            setStatus(errorMessage);
         }
     };
 
@@ -53,7 +60,7 @@ const DriverRegistration = ({ contract, account }) => {
                 <input name="plateNumber" onChange={handleChange} required />
             </div>
             <div>
-                <label>Fare (ETH/Wei):</label>
+                <label>Fare (Wei):</label>
                 <input name="fare" type="number" onChange={handleChange} required />
             </div>
             <button type="submit">Register Driver</button>

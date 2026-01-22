@@ -1,23 +1,33 @@
 import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 
 const RiderDashboard = ({ contract, account }) => {
     const [fare, setFare] = useState('');
     const [pickup, setPickup] = useState('');
     const [destination, setDestination] = useState('');
-    const [notes, setNotes] = useState('');
     const [myRides, setMyRides] = useState([]);
     const [status, setStatus] = useState('');
 
-    const fetchMyRides = async () => {
+    const fetchMyRides = async (force = false) => {
         if (!contract) return;
         try {
-            const rideCount = await contract.methods.rideCount().call();
+            const currentRideCount = Number(await contract.rideCount());
+
+            if (!force && currentRideCount === myRides.length) return;
+
             const rides = [];
-            for (let i = 1; i <= rideCount; i++) {
-                const ride = await contract.methods.rides(i).call();
-                // Check if current user is the rider
-                if (ride.rider.toLowerCase() === account.toLowerCase()) {
-                    rides.push({ id: i, ...ride });
+            for (let i = 1; i <= currentRideCount; i++) {
+                const ride = await contract.rides(i);
+                if (!ride) continue;
+
+                if (ride.rider && account && ride.rider.toLowerCase() === account.toLowerCase()) {
+                    rides.push({
+                        id: i,
+                        status: ride.status,
+                        fare: ride.fare || 0,
+                        rider: ride.rider || '',
+                        driver: ride.driver || ''
+                    });
                 }
             }
             setMyRides(rides);
@@ -26,59 +36,40 @@ const RiderDashboard = ({ contract, account }) => {
         }
     };
 
-    useEffect(() => {
-        fetchMyRides();
-        // Poll for updates every 5 seconds
-        const interval = setInterval(fetchMyRides, 5000);
-        return () => clearInterval(interval);
-    }, [contract, account]);
-
     const handleRequestRide = async (e) => {
         e.preventDefault();
         if (!contract) return;
 
-        // Note: Pickup, Destination, and Notes are collected here but cannot be stored 
-        // on the blockchain without modifying the smart contract (which is restricted).
-        // For this prototype, we'll log them and proceed with the fare transaction.
-        console.log("Ride Request Details:", { pickup, destination, fare, notes });
-
         try {
-            setStatus('Requesting ride...');
-            await contract.methods.requestRide(fare).send({ from: account });
-            setStatus('Ride requested successfully!');
+            setStatus('Requesting ride');
+            const tx = await contract.requestRide({
+                value: ethers.parseUnits(fare, 'wei')
+            });
+            await tx.wait();
+            setStatus('Ride requested and funded successfully!');
             // Clear form
             setPickup('');
             setDestination('');
-            setNotes('');
             setFare('');
-            fetchMyRides();
+            fetchMyRides(true);
         } catch (error) {
             console.error(error);
-            setStatus('Request failed.');
+            if (error.message?.includes('user rejected')) {
+                setStatus('Transaction rejected.');
+            }
         }
     };
 
-    const handleFundRide = async (rideId, amount) => {
+    const handleFinishRide = async (rideId) => {
         try {
-            setStatus(`Funding ride ${rideId}...`);
-            await contract.methods.fundRide(rideId).send({ from: account, value: amount });
-            setStatus('Ride funded!');
-            fetchMyRides();
+            setStatus(`Finishing ride ${rideId} and paying driver...`);
+            const tx = await contract.finishRide(rideId);
+            await tx.wait();
+            setStatus('Ride finalized and driver paid!');
+            fetchMyRides(true);
         } catch (error) {
             console.error(error);
-            setStatus('Funding failed.');
-        }
-    };
-
-    const handleConfirmArrival = async (rideId) => {
-        try {
-            setStatus(`Confirming arrival for ride ${rideId}...`);
-            await contract.methods.confirmArrival(rideId).send({ from: account });
-            setStatus('Ride finalized!');
-            fetchMyRides();
-        } catch (error) {
-            console.error(error);
-            setStatus('Confirmation failed.');
+            setStatus('Finish failed.');
         }
     };
 
@@ -120,20 +111,16 @@ const RiderDashboard = ({ contract, account }) => {
                             min="1"
                         />
                     </div>
-                    <div>
-                        <label>Additional Notes (Optional):</label>
-                        type="text"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        />
-                    </div>
                     <button type="submit">Request Ride</button>
                 </form>
                 {status && <p style={{ marginTop: '10px', fontWeight: 'bold' }}>{status}</p>}
             </div>
 
             <div className="card">
-                <h3>My Ride History</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3>My Ride History</h3>
+                    <button onClick={() => fetchMyRides(true)} style={{ padding: '5px 10px', fontSize: '0.8rem' }}>Refresh</button>
+                </div>
                 {myRides.length === 0 ? (
                     <p>No rides found.</p>
                 ) : (
@@ -146,18 +133,16 @@ const RiderDashboard = ({ contract, account }) => {
                                         {getStatusLabel(ride.status)}
                                     </span>
                                 </div>
-                                <div>Fare: {ride.fare.toString()} Wei</div>
-                                {/* Note: In a real app with revised contract, we would show Pickup/Dest here */}
+                                <div>Fare: {ride.fare ? ride.fare.toString() : '0'} Wei</div>
 
                                 <div style={{ marginTop: '10px' }}>
-                                    {/* Status 1 = Accepted, need Funding */}
-                                    {ride.status.toString() === "1" && (
-                                        <button onClick={() => handleFundRide(ride.id, ride.fare)}>Fund Ride</button>
-                                    )}
-                                    {/* Status 4 = CompletedByDriver, need Confirmation */}
-                                    {ride.status.toString() === "4" && (
-                                        <button onClick={() => handleConfirmArrival(ride.id)}>Confirm Arrival</button>
-                                    )}
+                                    {(ride.status !== undefined && (
+                                        ride.status.toString() === "1" ||
+                                        ride.status.toString() === "3" ||
+                                        ride.status.toString() === "4"
+                                    )) && (
+                                            <button onClick={() => handleFinishRide(ride.id)}>Finish Ride & Pay Driver</button>
+                                        )}
                                 </div>
                             </li>
                         ))}
