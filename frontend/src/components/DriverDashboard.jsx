@@ -164,7 +164,7 @@ const DriverDashboard = ({ contract, account }) => {
                         <div><strong>Phone:</strong> {driverDetails.phone}</div>
                         <div><strong>Vehicle:</strong> {driverDetails.vehicle}</div>
                         <div><strong>Plate:</strong> {driverDetails.plate}</div>
-                        <div><strong>Fare/Ride:</strong> {driverDetails.fare} Wei</div>
+                        <div><strong>Fare/Ride:</strong> {driverDetails.fare}Wei</div>
                     </div>
                 )}
             </div>
