@@ -141,7 +141,7 @@ const RiderDashboard = ({ contract, account }) => {
                                         ride.status.toString() === "3" ||
                                         ride.status.toString() === "4"
                                     )) && (
-                                            <button onClick={() => handleFinishRide(ride.id)}>Finish Ride & Pay Driver</button>
+                                            <button onClick={() => handleFinishRide(ride.id)}>Finish Ride</button>
                                         )}
                                 </div>
                             </li>
