@@ -102,8 +102,6 @@ contract rideShare {
         ride.status = Status.Accepted;
     }
 
-    // fundRide is removed as it's consolidated with requestRide
-
     function startRide(uint256 _rideId) external {
         Ride storage ride = rides[_rideId];
 
@@ -125,8 +123,7 @@ contract rideShare {
     function finishRide(uint256 _rideId) external {
         Ride storage ride = rides[_rideId];
 
-        require(msg.sender == ride.rider, "Only rider can finish");
-        // Rider can finish anytime after a driver is assigned (Accepted) until Completed
+        require(msg.sender == ride.rider, "Only rider");
         require(
             ride.status == Status.Accepted || 
             ride.status == Status.Started || 
@@ -147,12 +144,11 @@ contract rideShare {
         require(
             ride.status == Status.Requested ||
             ride.status == Status.Accepted,
-            "Cannot cancel after ride started"
+            "Cannot cancel"
         );
 
         ride.status = Status.Cancelled;
         
-        // Refund the rider since they already paid in requestRide
         (bool success, ) = ride.rider.call{value: ride.fare}("");
         require(success, "Refund failed");
     }
